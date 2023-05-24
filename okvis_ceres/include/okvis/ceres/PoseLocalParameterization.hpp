@@ -310,6 +310,59 @@ class PoseLocalParameterization2d : public ::ceres::LocalParameterization,
   }
 };
 
+/// \brief Pose local parameterisation, i.e. for orientation dq(dalpha) x q_bar.
+///        Here, we only perturb the translation and yaw though.
+class PoseLocalParameterizationYaw : public ::ceres::LocalParameterization,
+                                     public LocalParamizationAdditionalInterfaces {
+ public:
+  /// \brief Trivial destructor.
+  virtual ~PoseLocalParameterizationYaw() {}
+
+  /// \brief Generalization of the addition operation,
+  ///        x_plus_delta = Plus(x, delta)
+  ///        with the condition that Plus(x, 0) = x.
+  /// @param[in] x Variable.
+  /// @param[in] delta Perturbation.
+  /// @param[out] x_plus_delta Perturbed x.
+  virtual bool Plus(const double* x, const double* delta, double* x_plus_delta) const;
+
+  /// \brief Computes the minimal difference between a variable x and a perturbed variable x_plus_delta
+  /// @param[in] x Variable.
+  /// @param[in] x_plus_delta Perturbed variable.
+  /// @param[out] delta minimal difference.
+  /// \return True on success.
+  virtual bool Minus(const double* x, const double* x_plus_delta, double* delta) const;
+
+  /// \brief The jacobian of Plus(x, delta) w.r.t delta at delta = 0.
+  /// @param[in] x Variable.
+  /// @param[out] jacobian The Jacobian.
+  virtual bool ComputeJacobian(const double* x, double* jacobian) const;
+
+  /// \brief Computes the Jacobian from minimal space to naively overparameterised space as used by ceres.
+  /// @param[in] x Variable.
+  /// @param[out] jacobian the Jacobian (dimension minDim x dim).
+  /// \return True on success.
+  virtual bool ComputeLiftJacobian(const double* x, double* jacobian) const;
+
+  // provide these as static for easy use elsewhere:
+  /// \brief The jacobian of Plus(x, delta) w.r.t delta at delta = 0.
+  /// @param[in] x Variable.
+  /// @param[out] jacobian The Jacobian.
+  static bool plusJacobian(const double* x, double* jacobian);
+
+  /// \brief Computes the Jacobian from minimal space to naively overparameterised space as used by ceres.
+  /// @param[in] x Variable.
+  /// @param[out] jacobian the Jacobian (dimension minDim x dim).
+  /// \return True on success.
+  static bool liftJacobian(const double* x, double* jacobian);
+
+  /// \brief The parameter block dimension.
+  virtual int GlobalSize() const { return 7; }
+
+  /// \brief The parameter block local dimension.
+  virtual int LocalSize() const { return 1; }
+};
+
 }  // namespace ceres
 }  // namespace okvis
 

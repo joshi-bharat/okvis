@@ -61,22 +61,99 @@ bool MagErrorYaw::EvaluateWithMinimalJacobians(double const* const* parameters,
   error = mag_field + bias_ - measurement_;
 
   // weigh it
-  Eigen::Map<Eigen::Matrix<double, 3, 1> > weighted_error(residuals);
+  Eigen::Map<Eigen::Matrix<double, 3, 1>> weighted_error(residuals);
   weighted_error = sqrt_information_ * error;
 
   // compute Jacobian...
   if (jacobians != NULL) {
     if (jacobians[0] != NULL) {
-      Eigen::Map<Eigen::Matrix<double, 3, 1> > J0(jacobians[0]);
+      Eigen::Map<Eigen::Matrix<double, 3, 1>> J0(jacobians[0]);
       Eigen::Matrix<double, 3, 3, Eigen::RowMajor> J0_minimal = okvis::kinematics::crossMx(mag_field);
       J0 = J0_minimal.col(2);
       J0 = (sqrt_information_ * J0);
 
       if (jacobiansMinimal != NULL) {
         if (jacobiansMinimal[0] != NULL) {
-          Eigen::Map<Eigen::Matrix<double, 3, 1> > J0_minimal_mapped(jacobiansMinimal[0]);
+          Eigen::Map<Eigen::Matrix<double, 3, 1>> J0_minimal_mapped(jacobiansMinimal[0]);
           J0_minimal_mapped = J0_minimal.col(2);
         }
+      }
+    }
+  }
+
+  return true;
+}
+
+MagErrorYawLocal::MagErrorYawLocal(const Eigen::Vector3d& measurement,
+                                   double scale,
+                                   const Eigen::Vector3d& direction,
+                                   const Eigen::Vector3d& bias,
+                                   const information_t& information)
+    : nM_(scale * direction), bias_(bias) {
+  setMeasurement(measurement);
+  setInformation(information);
+}
+
+MagErrorYawLocal::MagErrorYawLocal(const Eigen::Vector3d& measurement,
+                                   double scale,
+                                   const Eigen::Vector3d& direction,
+                                   const Eigen::Vector3d& bias,
+                                   double variance)
+    : nM_(scale * direction), bias_(bias) {
+  setMeasurement(measurement);
+  setInformation(Eigen::Matrix3d::Identity() * 1.0 / variance);
+}
+
+// Set the information.
+void MagErrorYawLocal::setInformation(const information_t& information) {
+  information_ = information;
+  covariance_ = information.inverse();
+  // perform the Cholesky decomposition on order to obtain the correct error weighting
+  Eigen::LLT<information_t> lltOfInformation(information_);
+  sqrt_information_ = lltOfInformation.matrixL().transpose();
+}
+
+// This evaluates the error term and additionally computes the Jacobians.
+bool MagErrorYawLocal::Evaluate(double const* const* parameters, double* residuals, double** jacobians) const {
+  return EvaluateWithMinimalJacobians(parameters, residuals, jacobians, NULL);
+}
+
+// This evaluates the error term and additionally computes
+// the Jacobians in the minimal internal representation.
+bool MagErrorYawLocal::EvaluateWithMinimalJacobians(double const* const* parameters,
+                                                    double* residuals,
+                                                    double** jacobians,
+                                                    double** jacobiansMinimal) const {
+  okvis::kinematics::Transformation T_WS(
+      Eigen::Vector3d(parameters[0][0], parameters[0][1], parameters[0][2]),
+      Eigen::Quaterniond(parameters[0][6], parameters[0][3], parameters[0][4], parameters[0][5]));
+  auto T_SW = T_WS.inverse();
+
+  // get the error
+  Eigen::Matrix<double, 3, 1> error;
+  const Eigen::Vector3d mag_field = T_SW * nM_;
+  error = mag_field + bias_ - measurement_;
+
+  std::cout << "mag_field: " << mag_field.transpose() << std::endl;
+
+  // weigh it
+  Eigen::Map<Eigen::Matrix<double, 3, 1>> weighted_error(residuals);
+  weighted_error = sqrt_information_ * error;
+
+  // compute Jacobian...
+  if (jacobians != NULL && jacobians[0] != NULL) {
+    Eigen::Map<Eigen::Matrix<double, 3, 7, Eigen::RowMajor>> J0(jacobians[0]);
+    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> J0_minimal = okvis::kinematics::crossMx(mag_field);
+
+    Eigen::Matrix<double, 1, 7, Eigen::RowMajor> J_lift;
+    PoseLocalParameterizationYaw::liftJacobian(parameters[0], J_lift.data());
+
+    J0 = sqrt_information_ * J0_minimal.col(2) * J_lift;
+
+    if (jacobiansMinimal != NULL) {
+      if (jacobiansMinimal[0] != NULL) {
+        Eigen::Map<Eigen::Matrix<double, 3, 1>> J0_minimal_mapped(jacobiansMinimal[0]);
+        J0_minimal_mapped = sqrt_information_ * J0_minimal.col(2);
       }
     }
   }
@@ -133,11 +210,11 @@ bool MagPoseError::EvaluateWithMinimalJacobians(double const* const* parameters,
   error = mag_field + bias_ - measurement_;
 
   // weigh it
-  Eigen::Map<Eigen::Matrix<double, 3, 1> > weighted_error(residuals);
+  Eigen::Map<Eigen::Matrix<double, 3, 1>> weighted_error(residuals);
   weighted_error = sqrt_information_ * error;
 
   if (jacobians != NULL && jacobians[0] != NULL) {
-    Eigen::Map<Eigen::Matrix<double, 3, 7> > J0(jacobians[0]);
+    Eigen::Map<Eigen::Matrix<double, 3, 7, Eigen::RowMajor>> J0(jacobians[0]);
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> J0_minimal = okvis::kinematics::crossMx(mag_field);
 
     J0_minimal = (sqrt_information_ * J0_minimal).eval();
@@ -151,7 +228,7 @@ bool MagPoseError::EvaluateWithMinimalJacobians(double const* const* parameters,
 
     if (jacobiansMinimal != NULL) {
       if (jacobiansMinimal[0] != NULL) {
-        Eigen::Map<Eigen::Matrix<double, 3, 6> > J0_minimal_mapped(jacobiansMinimal[0]);
+        Eigen::Map<Eigen::Matrix<double, 3, 6>> J0_minimal_mapped(jacobiansMinimal[0]);
         J0_minimal_mapped.setZero();
         J0_minimal_mapped.block<3, 3>(3, 3) = J0_minimal;
       }

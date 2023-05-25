@@ -101,7 +101,7 @@ MagErrorYawLocal::MagErrorYawLocal(const Eigen::Vector3d& measurement,
                                    double variance)
     : nM_(scale * direction), bias_(bias) {
   setMeasurement(measurement);
-  setInformation(Eigen::Matrix3d::Identity() * 1.0 / variance);
+  setInformation(Eigen::MatrixXd::Identity(kNumResiduals, kNumResiduals) * 1.0 / variance);
 }
 
 // Set the information.
@@ -130,30 +130,35 @@ bool MagErrorYawLocal::EvaluateWithMinimalJacobians(double const* const* paramet
   auto T_SW = T_WS.inverse();
 
   // get the error
-  Eigen::Matrix<double, 3, 1> error;
-  const Eigen::Vector3d mag_field = T_SW * nM_;
-  error = mag_field + bias_ - measurement_;
+  double error;
+  Eigen::Vector3d mag_field = T_SW * nM_ + bias_;
+  Eigen::Vector3d normalized_mag_field = mag_field.normalized();
+  Eigen::Vector3d normalized_measurement = measurement_.normalized();
+  error = normalized_measurement.dot(normalized_mag_field) - 1.0;
 
-  std::cout << "mag_field: " << mag_field.transpose() << std::endl;
+  // std::cout << "mag_field: " << mag_field.transpose() << std::endl;
 
   // weigh it
-  Eigen::Map<Eigen::Matrix<double, 3, 1>> weighted_error(residuals);
-  weighted_error = sqrt_information_ * error;
+  residuals[0] = sqrt_information_(0, 0) * error;
 
   // compute Jacobian...
   if (jacobians != NULL && jacobians[0] != NULL) {
-    Eigen::Map<Eigen::Matrix<double, 3, 7, Eigen::RowMajor>> J0(jacobians[0]);
+    Eigen::Map<Eigen::Matrix<double, 1, 7, Eigen::RowMajor>> J0(jacobians[0]);
+
+    Eigen::Matrix<double, 1, 3, Eigen::RowMajor> J_dot_product = normalized_measurement.transpose();
+    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> J_norm = normalizationJacobian<3>(mag_field);
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> J0_minimal = okvis::kinematics::crossMx(mag_field);
 
     Eigen::Matrix<double, 1, 7, Eigen::RowMajor> J_lift;
     PoseLocalParameterizationYaw::liftJacobian(parameters[0], J_lift.data());
 
-    J0 = sqrt_information_ * J0_minimal.col(2) * J_lift;
+    Eigen::Matrix<double, 1, 3> J_effective = J_dot_product * J_norm * J0_minimal;
+    J0 = sqrt_information_(0, 0) * J_effective.col(2) * J_lift;
 
     if (jacobiansMinimal != NULL) {
       if (jacobiansMinimal[0] != NULL) {
-        Eigen::Map<Eigen::Matrix<double, 3, 1>> J0_minimal_mapped(jacobiansMinimal[0]);
-        J0_minimal_mapped = sqrt_information_ * J0_minimal.col(2);
+        Eigen::Map<Eigen::Matrix<double, 1, 1>> J0_minimal_mapped(jacobiansMinimal[0]);
+        J0_minimal_mapped = sqrt_information_(0, 0) * J_effective.col(2);
       }
     }
   }

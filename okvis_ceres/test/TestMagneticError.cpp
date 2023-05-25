@@ -112,7 +112,7 @@ TEST(okvisTestSuite, MagneticErrorYawLocal) {
   okvis::ceres::PoseParameterBlock poseParameterBlock(T_WS, 0, t_0);
 
   double* parameters[1];
-  Eigen::Matrix<double, 3, 1> residuals;
+  Eigen::Matrix<double, 1, 1> residuals;
   parameters[0] = poseParameterBlock.parameters();
 
   Eigen::Matrix<double, 3, 7, Eigen::RowMajor> j;
@@ -134,7 +134,7 @@ TEST(okvisTestSuite, MagneticErrorYawLocal) {
   okvis::kinematics::Transformation T_init;
   poseParameterBlock.setEstimate(T_init);
 
-  mag_yaw_cost_func->setInformation(Eigen::Matrix3d::Identity() * 1.0 / variance);
+  mag_yaw_cost_func->setInformation(Eigen::MatrixXd::Identity(1, 1) * 1.0 / variance);
   ceres::Problem* problem = new ceres::Problem();
 
   ceres::LocalParameterization* poseLocalParameterizationYaw = new okvis::ceres::PoseLocalParameterizationYaw;
@@ -145,7 +145,7 @@ TEST(okvisTestSuite, MagneticErrorYawLocal) {
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);
-  cout << summary.BriefReport() << endl;
+  cout << summary.FullReport() << endl;
 
   OKVIS_ASSERT_TRUE(Exception, summary.final_cost < 1e-2, "cost not reducible");
   OKVIS_ASSERT_TRUE(Exception,

@@ -18,6 +18,13 @@
 namespace okvis {
 namespace ceres {
 
+template <int dim>
+[[nodiscard]] Eigen::Matrix<double, dim, dim> normalizationJacobian(const Eigen::Matrix<double, dim, 1>& vec) {
+  Eigen::Matrix<double, dim, dim> J;
+  J = (Eigen::MatrixXd::Identity(dim, dim) - vec * vec.transpose() / vec.squaredNorm()) / vec.norm();
+  return J;
+}
+
 class MagErrorYaw : public ::ceres::SizedCostFunction<3, 1>, public ErrorInterface {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -114,16 +121,16 @@ class MagErrorYaw : public ::ceres::SizedCostFunction<3, 1>, public ErrorInterfa
   covariance_t covariance_;
 };
 
-class MagErrorYawLocal : public ::ceres::SizedCostFunction<3, 7>, public ErrorInterface {
+class MagErrorYawLocal : public ::ceres::SizedCostFunction<1, 7>, public ErrorInterface {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   OKVIS_DEFINE_EXCEPTION(Exception, std::runtime_error)
 
-  typedef ::ceres::SizedCostFunction<3, 7> base_t;
+  typedef ::ceres::SizedCostFunction<1, 7> base_t;
 
-  static const int kNumResiduals = 3;
-  typedef Eigen::Matrix3d information_t;
-  typedef Eigen::Matrix3d covariance_t;
+  static const int kNumResiduals = 1;
+  typedef Eigen::Matrix<double, 1, 1> information_t;
+  typedef Eigen::Matrix<double, 1, 1> covariance_t;
 
   /// \brief Default constructor.
   MagErrorYawLocal(){};

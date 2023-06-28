@@ -122,14 +122,15 @@ struct ImuParameters {
  */
 struct MagnetometerParameters {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  okvis::kinematics::Transformation T_SM;  ///< Transformation from IMU to Magnetometer.
+  okvis::kinematics::Transformation T_SM;  ///< Transformation from Magnetometer to IMU.
   double stdev;                            ///< Measurement (white noise part) standard deviation. [uT]
   double priorStdev;                       ///< Prior. [uT]
   double tau;                              ///< Reversion time constant of bias [s]
   double sigma_c;                          ///< Bias noise density [uT/sqrt(Hz)]
   double updateFrequency;                  ///< Related state estimates are inserted at this frequency. [Hz]
   Eigen::Vector3d b0;                      ///< Mean of the prior bias. [uT]
-  Eigen::Matrix3d C0;                      ///< Initial soft iron bias and axis misalignment [uT]
+  Eigen::Matrix3d A0;                      ///< Initial soft iron bias and axis misalignment [uT]
+  int rate;                                ///< Magnetometer rate in Hz.
 };
 
 /*!

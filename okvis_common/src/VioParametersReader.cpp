@@ -404,10 +404,13 @@ void VioParametersReader::readConfigFile(const std::string& filename) {
     OKVIS_ASSERT_TRUE(Exception,
                       mag_params["sigma_bm"].isReal(),
                       "'mag_params: sigma_mw_c' parameter missing in configuration file.");
+    OKVIS_ASSERT_TRUE(
+        Exception, mag_params["rate"].isInt(), "'mag_params: rate' parameter missing in configuration file.")
 
     mag_params["sigma_m_c"] >> vioParameters_.magnetometer.stdev;
     mag_params["sigma_mw_c"] >> vioParameters_.magnetometer.sigma_c;
     mag_params["sigma_bm"] >> vioParameters_.magnetometer.priorStdev;
+    mag_params["rate"] >> vioParameters_.magnetometer.rate;
 
     OKVIS_ASSERT_TRUE(Exception, mag_params["b0"].isSeq(), "'ma_params: m0' parameter missing in configuration file.");
     vioParameters_.magnetometer.b0 = Eigen::Vector3d(mag_params["b0"][0], mag_params["b0"][1], mag_params["b0"][2]);
@@ -420,9 +423,9 @@ void VioParametersReader::readConfigFile(const std::string& filename) {
         T_SM[11], T_SM[12], T_SM[13], T_SM[14], T_SM[15];
 
     vioParameters_.magnetometer.T_SM = okvis::kinematics::Transformation(T_SM_mat);
-    cv::FileNode C0 = mag_params["C0"];
-    OKVIS_ASSERT_TRUE(Exception, C0.isSeq(), "'C0' parameter missing in the configuration file or in the wrong format.")
-    vioParameters_.magnetometer.C0 << C0[0], C0[1], C0[2], C0[3], C0[4], C0[5], C0[6], C0[7], C0[8];
+    cv::FileNode A0 = mag_params["A0"];
+    OKVIS_ASSERT_TRUE(Exception, A0.isSeq(), "'A0' parameter missing in the configuration file or in the wrong format.")
+    vioParameters_.magnetometer.A0 << A0[0], A0[1], A0[2], A0[3], A0[4], A0[5], A0[6], A0[7], A0[8];
 
     LOG(INFO) << "Magnetometer with transformation T_SM: \n"
               << vioParameters_.magnetometer.T_SM.T() << "\n"
@@ -430,7 +433,7 @@ void VioParametersReader::readConfigFile(const std::string& filename) {
               << "Magnetometer bias noise density: " << vioParameters_.magnetometer.sigma_c << "\n"
               << "Initial Bias: " << vioParameters_.magnetometer.b0.transpose() << "\n"
               << "Initial Soft Iron/Axis Misalignment: \n"
-              << vioParameters_.magnetometer.C0;
+              << vioParameters_.magnetometer.A0;
   }
 
   readConfigFile_ = true;

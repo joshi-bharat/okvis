@@ -108,6 +108,14 @@ class Estimator : public VioBackendInterface {
   int addImu(const okvis::ImuParameters& imuParameters);
 
   /**
+   * @brief Add a Magnetometer to the configuration.
+   * @warning Currently there is only one Magnetometer supported.
+   * @param magParameters The Magnetometer parameters.
+   * @return index of Magnetometer.
+   */
+  int addMagnetometer(const okvis::MagnetometerParameters& magParameters);
+
+  /**
    * @brief Remove all cameras from the configuration
    */
   void clearCameras();
@@ -116,6 +124,12 @@ class Estimator : public VioBackendInterface {
    * @brief Remove all IMUs from the configuration.
    */
   void clearImus();
+
+  /**
+   * @brief Remove all Magnetometers from the configuration.
+   */
+
+  void clearMagnetometers();
 
   /// @}
 
@@ -126,7 +140,10 @@ class Estimator : public VioBackendInterface {
    * @param asKeyframe Is this new frame a keyframe?
    * @return True if successful.
    */
-  bool addStates(okvis::MultiFramePtr multiFrame, const okvis::ImuMeasurementDeque& imuMeasurements, bool asKeyframe);
+  bool addStates(okvis::MultiFramePtr multiFrame,
+                 const okvis::ImuMeasurementDeque& imuMeasurements,
+                 bool asKeyframe,
+                 const okvis::MagnetometerMeasurementDeque& mag_measurements = okvis::MagnetometerMeasurementDeque());
 
   /**
    * @brief Prints state information to buffer.
@@ -554,6 +571,8 @@ class Estimator : public VioBackendInterface {
       extrinsicsEstimationParametersVec_;  ///< Extrinsics parameters.
   std::vector<okvis::ImuParameters, Eigen::aligned_allocator<okvis::ImuParameters> >
       imuParametersVec_;                   ///< IMU parameters.
+  std::vector<okvis::MagnetometerParameters, Eigen::aligned_allocator<okvis::MagnetometerParameters> >
+      magnetometer_parameters_;            ///< Magnetometer parameters.
 
   // loss function for reprojection errors
   std::shared_ptr< ::ceres::LossFunction> cauchyLossFunctionPtr_;  ///< Cauchy loss.

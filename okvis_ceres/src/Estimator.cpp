@@ -87,23 +87,43 @@ int Estimator::addImu(const ImuParameters& imuParameters) {
   return imuParametersVec_.size() - 1;
 }
 
+// Add an IMU to the configuration.
+int Estimator::addMagnetometer(const MagnetometerParameters& mag_parameters) {
+  if (magnetometer_parameters_.size() > 1) {
+    LOG(ERROR) << "only one magnetometer currently supported";
+    return -1;
+  }
+  magnetometer_parameters_.push_back(mag_parameters);
+  return magnetometer_parameters_.size() - 1;
+}
+
 // Remove all cameras from the configuration
 void Estimator::clearCameras() { extrinsicsEstimationParametersVec_.clear(); }
 
 // Remove all IMUs from the configuration.
 void Estimator::clearImus() { imuParametersVec_.clear(); }
 
+// Remove all Magnetometers from the configuration.
+void Estimator::clearMagnetometers() { magnetometer_parameters_.clear(); }
+
 // Add a pose to the state.
 bool Estimator::addStates(okvis::MultiFramePtr multiFrame,
                           const okvis::ImuMeasurementDeque& imuMeasurements,
-                          bool asKeyframe) {
+                          bool asKeyframe,
+                          const okvis::MagnetometerMeasurementDeque& mag_measurements) {
   // note: this is before matching...
   // TODO !!
   okvis::kinematics::Transformation T_WS;
   okvis::SpeedAndBias speedAndBias;
   if (statesMap_.empty()) {
     // in case this is the first frame ever, let's initialize the pose:
-    bool success0 = initPoseFromImu(imuMeasurements, T_WS);
+    bool success0 = false;
+    if (mag_measurements.empty()) {
+      success0 = initPoseFromImu(imuMeasurements, T_WS);
+    } else {
+      success0 =
+          initPoseFromImuAndMagnetometer(imuMeasurements, mag_measurements, magnetometer_parameters_.at(0), T_WS);
+    }
     OKVIS_ASSERT_TRUE_DBG(Exception, success0, "pose could not be initialized from imu measurements.");
     if (!success0) return false;
     speedAndBias.setZero();
@@ -772,7 +792,7 @@ bool Estimator::initPoseFromImuAndMagnetometer(const okvis::ImuMeasurementDeque&
                                                const okvis::MagnetometerMeasurementDeque& mag_measurements,
                                                const okvis::MagnetometerParameters& mag_params,
                                                okvis::kinematics::Transformation& T_WS) {
-  LOG(INFO) << "Initializing pose from IMU and magnetometer measurements.";
+  VLOG(1) << "Initializing pose from IMU and magnetometer measurements.";
   // set translation to zero, unit rotation
   T_WS.setIdentity();
 
@@ -814,6 +834,7 @@ bool Estimator::initPoseFromImuAndMagnetometer(const okvis::ImuMeasurementDeque&
 
   T_WS.set(Eigen::Vector3d::Zero(), q_WS);
 
+  VLOG(1) << "Initial T_WS: " << T_WS.T();
   return true;
 }
 

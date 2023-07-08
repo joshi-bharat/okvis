@@ -51,6 +51,8 @@ namespace okvis {
 static const int max_camera_input_queue_size = 10;
 static const okvis::Duration temporal_imu_data_overlap(
     0.02);  // overlap of imu data before and after two consecutive frames [seconds]
+static const okvis::Duration temporal_mag_data_overlap(0.1);  // overlap of mag data before and after two consecutive
+                                                              // frames [seconds] Assuming 20Hz
 
 #ifdef USE_MOCK
 // Constructor for gmock.
@@ -106,6 +108,10 @@ void ThreadedKFVio::init() {
       temporal_imu_data_overlap;  // s.t. last_timestamp_ - overlap >= 0 (since okvis::time(-0.02) returns big number)
 
   estimator_.addImu(parameters_.imu);
+  if (parameters_.sensors_information.useMagnetometer) {
+    estimator_.addMagnetometer(parameters_.magnetometer);
+  }
+
   for (size_t i = 0; i < numCameras_; ++i) {
     // parameters_.camera_extrinsics is never set (default 0's)...
     // do they ever change?
@@ -338,7 +344,6 @@ void ThreadedKFVio::frameConsumerLoop(size_t cameraIndex) {
       "1.3.1 waitForFrameSynchronizerMutex2" + std::to_string(cameraIndex), true);
   TimerSwitchable waitForMatchingThreadTimer("1.4 waitForMatchingThread" + std::to_string(cameraIndex), true);
 
-  static const okvis::Duration temporal_mag_data_overlap(2.0 / static_cast<double>(parameters_.magnetometer.rate));
   for (;;) {
     // get data and check for termination request
     if (cameraMeasurementsReceived_[cameraIndex]->PopBlocking(&frame) == false) {
@@ -506,6 +511,20 @@ void ThreadedKFVio::matchingLoop() {
     // no measurements in timeframe, should not happen, as we waited for measurements
     if (imuData.size() == 0) continue;
 
+    bool test = false;
+    OKVIS_ASSERT_TRUE_DBG(Exception, test, "Just test");
+
+    okvis::MagnetometerMeasurementDeque mag_data;
+    if (parameters_.sensors_information.useMagnetometer) {
+      okvis::Time mag_data_end_time = frame->timestamp() + temporal_mag_data_overlap;
+      okvis::Time mag_data_start_time;
+      if (estimator_.numFrames() == 0) {
+        mag_data_start_time = imuDataBeginTime;
+      } else {
+        mag_data_start_time = lastAddedStateTimestamp_ - temporal_mag_data_overlap;
+      }
+      mag_data = getMagnetometerMeasurements(mag_data_start_time, mag_data_end_time);
+    }
     // make sure that optimization of last frame is over.
     // TODO If we didn't actually 'pop' the _matchedFrames queue until after optimization this would not be necessary
     {
@@ -516,7 +535,7 @@ void ThreadedKFVio::matchingLoop() {
       addStateTimer.start();
       okvis::Time t0Matching = okvis::Time::now();
       bool asKeyframe = false;
-      if (estimator_.addStates(frame, imuData, asKeyframe)) {
+      if (estimator_.addStates(frame, imuData, asKeyframe, mag_data)) {
         lastAddedStateTimestamp_ = frame->timestamp();
         addStateTimer.stop();
       } else {

@@ -28,7 +28,7 @@ install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR} COMPONENT dev FILE
 if(BUILD_TESTS)
   
   find_package(GTest REQUIRED)
-  find_package(glog REQUIRED)
+  find_package(Glog REQUIRED)
 
   enable_testing()
   set(PROJECT_TEST_NAME ${PROJECT_NAME}_test)
@@ -42,7 +42,7 @@ if(BUILD_TESTS)
     gtest_main
     gmock
     gmock_main   
-    glog::glog
+    ${GLOG_LIBRARY}
     pthread
   )
   add_test(test ${PROJECT_TEST_NAME})

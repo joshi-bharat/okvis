@@ -76,7 +76,7 @@ ImuError::ImuError(const okvis::ImuMeasurementDeque& imuMeasurements,
 int ImuError::redoPreintegration(const okvis::kinematics::Transformation& /*T_WS*/,
                                  const okvis::SpeedAndBias& speedAndBiases) const {
   // ensure unique access
-  std::lock_guard<std::mutex> lock(preintegrationMutex_);
+  std::unique_lock lock(preintegrationMutex_);
 
   // now the propagation
   okvis::Time time = t0_;
@@ -437,11 +437,9 @@ int ImuError::propagation(const okvis::ImuMeasurementDeque& imuMeasurements,
 
   // actual propagation output:
   const Eigen::Vector3d g_W = Eigen::Vector3d(0, 0, imuParams.g);
-  T_WS.set(r_0 + speedAndBiases.head<3>() * Delta_t +
-               C_WS_0 * (acc_doubleintegral /*-C_doubleintegral*speedAndBiases.segment<3>(6)*/) -
-               0.5 * g_W * Delta_t * Delta_t,
+  T_WS.set(r_0 + speedAndBiases.head<3>() * Delta_t + C_WS_0 * acc_doubleintegral - 0.5 * g_W * Delta_t * Delta_t,
            q_WS_0 * Delta_q);
-  speedAndBiases.head<3>() += C_WS_0 * (acc_integral /*-C_integral*speedAndBiases.segment<3>(6)*/) - g_W * Delta_t;
+  speedAndBiases.head<3>() += C_WS_0 * acc_integral - g_W * Delta_t;
 
   // assign Jacobian, if requested
   if (jacobian) {
@@ -507,7 +505,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const* parameters,
   Eigen::Matrix<double, 6, 1> Delta_b;
   // ensure unique access
   {
-    std::lock_guard<std::mutex> lock(preintegrationMutex_);
+    std::unique_lock lock(preintegrationMutex_);
     Delta_b = speedAndBiases_0.tail<6>() - speedAndBiases_ref_.tail<6>();
   }
   redo_ = redo_ || (Delta_b.head<3>().norm() * Delta_t > 0.0001);
@@ -523,8 +521,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const* parameters,
 
   // actual propagation output:
   {
-    std::lock_guard<std::mutex> lock(
-        preintegrationMutex_);  // this is a bit stupid, but shared read-locks only come in C++14
+    std::shared_lock lock(preintegrationMutex_);  // this is a bit stupid, but shared read-locks only come in C++14
     const Eigen::Vector3d g_W = imuParameters_.g * Eigen::Vector3d(0, 0, 6371009).normalized();
 
     // assign Jacobian w.r.t. x0

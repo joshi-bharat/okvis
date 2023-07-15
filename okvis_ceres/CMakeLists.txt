@@ -24,6 +24,7 @@ add_library(${PROJECT_NAME}
   src/Estimator.cpp
   src/LocalParamizationAdditionalInterfaces.cpp
   src/MagneticError.cpp
+  src/MagneticPreintegrationError.cpp
   include/okvis/Estimator.hpp
   include/okvis/ceres/CeresIterationCallback.hpp
 )
@@ -57,7 +58,8 @@ if(BUILD_TESTS)
     test/TestImuError.cpp
     test/TestMap.cpp
     test/TestMarginalization.cpp
-    test/TestMagneticError.cpp
+    # test/TestMagneticError.cpp
+    test/TestMagneticPreintegrationError.cpp
   )
   target_link_libraries(${PROJECT_TEST_NAME} 
     ${PROJECT_NAME}

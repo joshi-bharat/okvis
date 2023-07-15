@@ -511,9 +511,6 @@ void ThreadedKFVio::matchingLoop() {
     // no measurements in timeframe, should not happen, as we waited for measurements
     if (imuData.size() == 0) continue;
 
-    bool test = false;
-    OKVIS_ASSERT_TRUE_DBG(Exception, test, "Just test");
-
     okvis::MagnetometerMeasurementDeque mag_data;
     if (parameters_.sensors_information.useMagnetometer) {
       okvis::Time mag_data_end_time = frame->timestamp() + temporal_mag_data_overlap;

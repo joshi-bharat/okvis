@@ -9,14 +9,10 @@ set(OKVIS_VERSION
   ${OKVIS_MAJOR_VERSION}.${OKVIS_MINOR_VERSION}.${OKVIS_PATCH_VERSION})
 
 # options for build configuration
-option (USE_SYSTEM_BRISK
-        "Use brisk via find_package rather than downloading it as part of okvis" ON) 
-option (USE_SYSTEM_CERES
-        "Use ceres via find_package rather than downloading it as part of okvis" ON) 
-option (BUILD_APPS
-        "Builds a demo app (which requires boost)" ON) 
-option (BUILD_TESTS
-        "Builds all gtests" OFF) 
+option (USE_SYSTEM_BRISK "Use brisk via find_package rather than downloading it as part of okvis" ON) 
+option (USE_SYSTEM_CERES "Use ceres via find_package rather than downloading it as part of okvis" ON) 
+option (BUILD_APPS "Builds a demo app (which requires boost)" ON) 
+option (BUILD_TESTS "Builds all gtests" ON) 
 SET(N_CORES 8 CACHE STRING "Using N number of cores for parallel build")
 
 # Offer the user the choice of overriding the installation directories

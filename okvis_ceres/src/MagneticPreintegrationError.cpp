@@ -2,6 +2,7 @@
 
 #include <glog/logging.h>
 
+#include "okvis/Measurements.hpp"
 #include "okvis/assert_macros.hpp"
 #include "okvis/ceres/ode/ode.hpp"
 
@@ -45,14 +46,12 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
                                              const okvis::ImuParameters& imu_parameters,
                                              const okvis::MagnetometerMeasurementDeque& magnetometer_measurements,
                                              okvis::kinematics::Transformation& T_WS0,
-                                             Transformations& T_WS,
-                                             SpeedAndBias& speed_and_biases0,
-                                             SpeedsAndBiases& speed_and_biases,
+                                             okvis::Transformations& T_WS,
+                                             okvis::SpeedAndBias& speed_and_biases0,
+                                             okvis::SpeedAndBiases& speed_and_biases,
                                              const okvis::Time& t_start,
-                                             const bool compute_covariance,
-                                             const bool compute_jacobian,
-                                             Covariances& covariances,
-                                             Jacobians& jacobians) {
+                                             Covariances* covariances,
+                                             Jacobians* jacobians) {
   okvis::Time time = t_start;
   assert(imu_measurements.front().timeStamp <= time);
 
@@ -100,7 +99,6 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
 
     // Meaning the magnetometer is between the current and next IMU measurement.
     okvis::Time next_time = (it + 1)->timeStamp;
-    if (next_time < t_start) continue;
 
     // time delta
     double dt = (next_time - time).toSec();
@@ -134,9 +132,10 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
     }
 
     if (magnetometer_measurements[current_mag_index].timeStamp <= next_time) {
-      current_mag_index++;
-      if (current_mag_index == num_magnetometer_measurements) {
+      if (current_mag_index == num_magnetometer_measurements - 1) {
         last_iteration = true;
+        //  for the last one.
+        imu_measumentes_used++;
       }
 
       double interval = (next_time - it->timeStamp).toSec();
@@ -162,9 +161,9 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
       const Eigen::Matrix3d dalpha_db_g_at_mag = dalpha_db_g + dt_until_magnetic * C_1;
 
       // covariance propagation
-      if (compute_covariance) {
+      if (covariances) {
         Eigen::Matrix<double, 6, 6> F_delta = Eigen::Matrix<double, 6, 6>::Identity();
-        F_delta.block<3, 3>(3, 3) = -dt_until_magnetic * C_1;
+        F_delta.block<3, 3>(0, 3) = -dt_until_magnetic * C_1;
 
         Eigen::Matrix<double, 6, 6> P_delta_mag = Eigen::Matrix<double, 6, 6>::Identity();
         P_delta_mag = F_delta * P_delta * F_delta.transpose();
@@ -177,8 +176,8 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
         P_delta_mag(2, 2) += sigma2_dalpha;
         const double sigma2_b_g = dt_until_magnetic * imu_parameters.sigma_gw_c * imu_parameters.sigma_gw_c;
         P_delta_mag(3, 3) += sigma2_b_g;
-        P_delta_mag(3, 4) += sigma2_b_g;
-        P_delta_mag(4, 5) += sigma2_b_g;
+        P_delta_mag(4, 4) += sigma2_b_g;
+        P_delta_mag(5, 5) += sigma2_b_g;
         // store quantity
         P_deltas_magnetometer.push_back(P_delta_mag);
       }
@@ -186,6 +185,7 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
       // store quantities
       delta_qs.push_back(delta_q_1);
       dalpha_db_gs.push_back(dalpha_db_g_at_mag);
+      current_mag_index++;
     }
     if (last_iteration) {
       break;
@@ -202,10 +202,14 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
       Eigen::Quaterniond delta_q_1 = delta_q * dq;
       // rotation matrix integral:
       const Eigen::Matrix3d C_1 = delta_q_1.toRotationMatrix();
-      if (compute_covariance) {
+
+      // For Jacobian
+      dalpha_db_g += dt * C_1;
+
+      if (covariances) {
         // covariance propagation
         Eigen::Matrix<double, 6, 6> F_delta = Eigen::Matrix<double, 6, 6>::Identity();
-        F_delta.block<3, 3>(0, 0) = -dt * C_1;
+        F_delta.block<3, 3>(0, 3) = -dt * C_1;
         P_delta = F_delta * P_delta * F_delta.transpose();
         // add noise. Note that transformations with rotation matrices can be
         // ignored, since the noise is isotropic.
@@ -236,17 +240,16 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
   }
 
   // assign Jacobian, if requested (Only at ;ast rts measurement at the moment)
-  if (compute_jacobian) {
+  if (jacobians) {
     for (uint32_t i = 0; i < num_magnetometer_measurements; ++i) {
       Eigen::Matrix<double, 6, 6> F = Eigen::Matrix<double, 6, 6>::Identity();
-      F.block<3, 3>(0, 0) = -C_WS_0 * dalpha_db_gs[i];
+      F.block<3, 3>(3, 3) = -C_WS_0 * dalpha_db_gs[i];
 
-      jacobians.push_back(F);
+      jacobians->push_back(F);
     }
   }
 
-  // overall covariance, if requested (Only at ;ast rts measurement at the moment)
-  if (compute_covariance) {
+  if (covariances) {
     for (size_t i = 0; i < num_magnetometer_measurements; ++i) {
       Eigen::Matrix<double, 6, 6> P;
       // transform from local increments to actual states
@@ -254,7 +257,7 @@ int MagneticPreintegrationError::propagation(const okvis::ImuMeasurementDeque& i
       T.topLeftCorner<3, 3>() = C_WS_0;
       P = T * P_deltas_magnetometer[i] * T.transpose();
 
-      covariances.push_back(P);
+      covariances->push_back(P);
     }
   }
 

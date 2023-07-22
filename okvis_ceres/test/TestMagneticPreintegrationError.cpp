@@ -9,6 +9,7 @@
 #include "okvis/ceres/HomogeneousPointLocalParameterization.hpp"
 #include "okvis/ceres/HomogeneousPointParameterBlock.hpp"
 #include "okvis/ceres/ImuError.hpp"
+#include "okvis/ceres/MagneticPreintegrationError.hpp"
 #include "okvis/ceres/PoseError.hpp"
 #include "okvis/ceres/PoseLocalParameterization.hpp"
 #include "okvis/ceres/PoseParameterBlock.hpp"
@@ -34,12 +35,14 @@ TEST(okvisTestSuite, MagneticPreintegrationError) {
   imuParameters.g = 9.81;
   imuParameters.a_max = 1000.0;
   imuParameters.g_max = 1000.0;
-  imuParameters.rate = 300;  // 1 kHz
-  imuParameters.sigma_g_c = 6.0e-3;
-  imuParameters.sigma_a_c = 2.0e-2;
-  imuParameters.sigma_gw_c = 3.0e-5;
-  imuParameters.sigma_aw_c = 2.0e-4;
+  imuParameters.rate = 200;  // 1 kHz
+  imuParameters.sigma_g_c = 6.0e-4;
+  imuParameters.sigma_a_c = 2.0e-3;
+  imuParameters.sigma_gw_c = 3.0e-6;
+  imuParameters.sigma_aw_c = 2.0e-5;
   imuParameters.tau = 3600.0;
+
+  // std::srand(std::time(nullptr));  // use current time as seed for random generator
 
   // generate random motion
   const double w_omega_S_x = Eigen::internal::random(0.1, 10.0);  // circular frequency
@@ -62,7 +65,7 @@ TEST(okvisTestSuite, MagneticPreintegrationError) {
   const double m_a_W_z = Eigen::internal::random(0.1, 10.0);
 
   // generate randomized measurements - duration 10 seconds
-  const double duration = 2.0;
+  const double duration = 1.0;
   okvis::ImuMeasurementDeque imuMeasurements;
   okvis::kinematics::Transformation T_WS;
   // T_WS.setRandom();
@@ -86,6 +89,13 @@ TEST(okvisTestSuite, MagneticPreintegrationError) {
   okvis::kinematics::Transformation T_WS_1;
   okvis::SpeedAndBias speedAndBias_1;
   okvis::Time t_1;
+
+  Eigen::Vector3d magnetic_field(-3024, 22795, -34437);
+  okvis::MagnetometerParameters magnetometer_parameters;
+  magnetometer_parameters.rate = 20;
+  magnetometer_parameters.stdev = 3.0;
+
+  okvis::MagnetometerMeasurementDeque magnetic_measurements;
 
   for (size_t i = 0; i < size_t(duration * imuParameters.rate); ++i) {
     double time = double(i) / imuParameters.rate;
@@ -137,5 +147,57 @@ TEST(okvisTestSuite, MagneticPreintegrationError) {
     Eigen::Vector3d acc = T_WS.inverse().C() * (a_W + Eigen::Vector3d(0, 0, imuParameters.g)) +
                           imuParameters.sigma_a_c / sqrt(dt) * Eigen::Vector3d::Random();
     imuMeasurements.push_back(okvis::ImuMeasurement(okvis::Time(time), okvis::ImuSensorReadings(gyr, acc)));
+
+    if (i > 0 && i % magnetometer_parameters.rate == 0) {
+      Eigen::Vector3d mag =
+          T_WS.inverse().C() * magnetic_field + magnetometer_parameters.stdev / sqrt(dt) * Eigen::Vector3d::Random();
+
+      magnetic_measurements.push_back(
+          okvis::MagnetometerMeasurement(okvis::Time(time), okvis::MagnetometerReading(mag)));
+    }
+  }
+  okvis::Transformations propagated_transfromations;
+  okvis::SpeedAndBiases estimated_speed_and_biases;
+  okvis::ceres::MagneticPreintegrationError::Covariances propagaged_covariances;
+  okvis::ceres::MagneticPreintegrationError::Jacobians propagated_jacobians;
+
+  std::cout << "Initial: " << T_WS_0.q().coeffs().transpose() << std::endl;
+  std::cout << "Magnetometer Measurements: " << magnetic_measurements.size() << std::endl;
+
+  int imu_used_mag = okvis::ceres::MagneticPreintegrationError::propagation(imuMeasurements,
+                                                                            imuParameters,
+                                                                            magnetic_measurements,
+                                                                            T_WS_0,
+                                                                            propagated_transfromations,
+                                                                            speedAndBias_0,
+                                                                            estimated_speed_and_biases,
+                                                                            t_0,
+                                                                            &propagaged_covariances,
+                                                                            &propagated_jacobians);
+
+  OKVIS_ASSERT_EQ(Exception,
+                  magnetic_measurements.size(),
+                  propagated_transfromations.size(),
+                  "Quaternion should be propagated for each measurement");
+
+  for (int i = 0; i < magnetic_measurements.size(); ++i) {
+    okvis::kinematics::Transformation transform = propagated_transfromations[i];
+    okvis::kinematics::Transformation T_WS_0_copy(T_WS_0.r(), T_WS_0.q());
+    okvis::SpeedAndBias speed_bias_copy = speedAndBias_0;
+
+    okvis::ceres::ImuError::covariance_t imu_covariance;
+    okvis::ceres::ImuError::jacobian_t imu_jacobian;
+    okvis::ceres::ImuError::propagation(imuMeasurements,
+                                        imuParameters,
+                                        T_WS_0_copy,
+                                        speed_bias_copy,
+                                        t_0,
+                                        magnetic_measurements[i].timeStamp,
+                                        &imu_covariance,
+                                        &imu_jacobian);
+
+    OKVIS_ASSERT_TRUE(
+        Exception, 2 * (T_WS_0_copy.q() * transform.q().inverse()).vec().norm() < 1e-3, "quaternions not close enough");
+
   }
 }

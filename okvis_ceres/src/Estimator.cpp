@@ -809,7 +809,7 @@ bool Estimator::initPoseFromImuAndMagnetometer(const okvis::ImuMeasurementDeque&
 
   Eigen::Vector3d mag_M = Eigen::Vector3d::Zero();
   for (auto mag_measurement : mag_measurements) {
-    mag_M += mag_measurement.measurement.fluxDensity;
+    mag_M += mag_measurement.measurement.flux_density_;
   }
 
   mag_M /= double(mag_measurements.size());

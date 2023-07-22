@@ -292,9 +292,7 @@ void ThreadedKFVio::addGpsMeasurement(const okvis::Time&,
 
 // Add a magnetometer measurement.
 void ThreadedKFVio::addMagnetometerMeasurement(const okvis::Time& stamp, const Eigen::Vector3d& magnetic_field) {
-  okvis::MagnetometerMeasurement magnetometer_measurement;
-  magnetometer_measurement.measurement.fluxDensity = magnetic_field;
-  magnetometer_measurement.timeStamp = stamp;
+  okvis::MagnetometerMeasurement magnetometer_measurement(stamp, magnetic_field);
 
   if (blocking_) {
     magnetometerMeasurementsReceived_.PushBlockingIfFull(magnetometer_measurement, 1);

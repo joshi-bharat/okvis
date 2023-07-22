@@ -14,9 +14,6 @@ namespace ceres {
 class MagneticPreintegrationError : public ::ceres::CostFunction, public ErrorInterface {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  typedef std::deque<okvis::kinematics::Transformation, Eigen::aligned_allocator<okvis::kinematics::Transformation>>
-      Transformations;
-  typedef std::deque<SpeedAndBias, Eigen::aligned_allocator<SpeedAndBias>> SpeedsAndBiases;
 
   typedef std::deque<Eigen::Matrix<double, 6, 6>, Eigen::aligned_allocator<Eigen::Matrix<double, 6, 6>>> Covariances;
 
@@ -24,10 +21,10 @@ class MagneticPreintegrationError : public ::ceres::CostFunction, public ErrorIn
 
   OKVIS_DEFINE_EXCEPTION(Exception, std::runtime_error)
 
-  /// \brief Default constructor.
+  // Default constructor
   MagneticPreintegrationError() = default;
 
-  /// \brief Trivial destructor.
+  // Default Destructor
   virtual ~MagneticPreintegrationError() = default;
 
   MagneticPreintegrationError(const okvis::MagnetometerMeasurementDeque& magnetometer_measurements,
@@ -41,14 +38,12 @@ class MagneticPreintegrationError : public ::ceres::CostFunction, public ErrorIn
                          const okvis::ImuParameters& imu_parameters,
                          const okvis::MagnetometerMeasurementDeque& magnetometer_measurements,
                          okvis::kinematics::Transformation& T_WS0,
-                         Transformations& T_WS,
-                         SpeedAndBias& speed_and_biases0,
-                         SpeedsAndBiases& speed_and_biases,
+                         okvis::Transformations& T_WS,
+                         okvis::SpeedAndBias& speed_and_biases0,
+                         okvis::SpeedAndBiases& speed_and_biases,
                          const okvis::Time& t_start,
-                         const bool compute_covariance,
-                         const bool compute_jacobian,
-                         Covariances& covariances,
-                         Jacobians& jacobians);
+                         Covariances* covariances = nullptr,
+                         Jacobians* jacobians = nullptr);
 
   int redoPreintegration(const okvis::kinematics::Transformation& T_WS, const SpeedAndBias& speed_and_biases) const;
   inline void setRedo(const bool redo = true) const { redo_ = redo; }

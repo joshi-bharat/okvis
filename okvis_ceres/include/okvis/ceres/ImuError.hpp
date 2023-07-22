@@ -243,7 +243,7 @@ class ImuError : public ::ceres::SizedCostFunction<15 /* number of residuals */,
   mutable Eigen::Matrix<double, 15, 15> P_delta_ = Eigen::Matrix<double, 15, 15>::Zero();
 
   /// \brief Reference biases that are updated when called redoPreintegration.
-  mutable SpeedAndBiases speedAndBiases_ref_ = SpeedAndBiases::Zero();
+  mutable SpeedAndBias speedAndBiases_ref_ = SpeedAndBias::Zero();
 
   mutable bool redo_ = true;     ///< Keeps track of whether or not this redoPreintegration() needs to be called.
   mutable int redoCounter_ = 0;  ///< Counts the number of preintegrations for statistics.

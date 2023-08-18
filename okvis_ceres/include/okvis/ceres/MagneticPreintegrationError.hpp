@@ -31,27 +31,27 @@ class MagneticPreintegrationError : public ::ceres::CostFunction, public ErrorIn
                               const okvis::MagnetometerParameters& magnetometer_params,
                               const okvis::ImuMeasurementDeque& imu_measurements,
                               const okvis::ImuParameters& imu_params,
-                              const okvis::Time& t_start,
-                              const okvis::Time& t_end);
+                              const okvis::MagnetometerMeasurement& start_magnetic_measurement,
+                              const okvis::MagnetometerMeasurement& end_magnetic_measurement);
 
   static int propagation(const okvis::ImuMeasurementDeque& imu_measurements,
                          const okvis::ImuParameters& imu_parameters,
                          const okvis::MagnetometerMeasurementDeque& magnetometer_measurements,
                          okvis::kinematics::Transformation& T_WS0,
-                         okvis::Transformations& T_WS,
                          okvis::SpeedAndBias& speed_and_biases0,
-                         okvis::SpeedAndBiases& speed_and_biases,
+                         okvis::Transformations& T_WS,
                          const okvis::Time& t_start,
+                         const okvis::Time& t_end,
                          Covariances* covariances = nullptr,
                          Jacobians* jacobians = nullptr);
 
   int redoPreintegration(const okvis::kinematics::Transformation& T_WS, const SpeedAndBias& speed_and_biases) const;
   inline void setRedo(const bool redo = true) const { redo_ = redo; }
 
-  inline void setImuParameters(const okvis::ImuParameters& imu_params) { imu_params_ = imu_params; }
+  inline void setImuParameters(const okvis::ImuParameters& imu_params) { imu_parameters_ = imu_params; }
 
   inline void setMagnetometerParameters(const okvis::MagnetometerParameters& magnetometer_params) {
-    magnetometer_params_ = magnetometer_params;
+    magnetometer_parameters_ = magnetometer_params;
   }
 
   void setImuMeasurements(const okvis::ImuMeasurementDeque& imu_measurements) { imu_measurements_ = imu_measurements; }
@@ -61,7 +61,12 @@ class MagneticPreintegrationError : public ::ceres::CostFunction, public ErrorIn
   }
 
   void setStartTime(const okvis::Time& t_start) { t_start_ = t_start; }
+  void setStartMagneticField(const Eigen::Vector3d& magnetic_field_start) {
+    magnetic_field_start_ = magnetic_field_start;
+  }
+
   void setEndTime(const okvis::Time& t_end) { t_end_ = t_end; }
+  void setEndMagneticField(const Eigen::Vector3d& magnetic_field_end) { magnetic_field_end_ = magnetic_field_end; }
 
   virtual bool Evaluate(double const* const* parameters, double* residuals, double** jacobians) const;
 
@@ -88,8 +93,8 @@ class MagneticPreintegrationError : public ::ceres::CostFunction, public ErrorIn
 
  protected:
   // parameters
-  okvis::ImuParameters imu_params_;
-  okvis::MagnetometerParameters magnetometer_params_;
+  okvis::ImuParameters imu_parameters_;
+  okvis::MagnetometerParameters magnetometer_parameters_;
 
   // measurements
   okvis::ImuMeasurementDeque imu_measurements_;
@@ -97,7 +102,9 @@ class MagneticPreintegrationError : public ::ceres::CostFunction, public ErrorIn
 
   // start and end time
   okvis::Time t_start_;
+  Eigen::Vector3d magnetic_field_start_;
   okvis::Time t_end_;
+  Eigen::Vector3d magnetic_field_end_;
 
   mutable std::shared_mutex preintegration_mutex_;
 
@@ -111,10 +118,11 @@ class MagneticPreintegrationError : public ::ceres::CostFunction, public ErrorIn
   mutable Eigen::Matrix<double, 6, 6> P_delta_ = Eigen::Matrix<double, 6, 6>::Zero();
 
   // increments vectors
-  mutable std::vector<Eigen::Quaterniond> delta_qs_vec_;
-  mutable std::vector<Eigen::Matrix3d> dalpha_db_g_vec_;
-  mutable std::vector<Eigen::Matrix<double, 6, 6>> P_delta_vec_;
-  mutable std::vector<Eigen::Matrix<double, 6, 6>> square_root_information_vec_;
+  mutable std::vector<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond>> delta_qs_vec_;
+  mutable std::vector<Eigen::Matrix3d, Eigen::aligned_allocator<Eigen::Matrix3d>> dalpha_db_g_vec_;
+  mutable std::vector<Eigen::Matrix<double, 6, 6>, Eigen::aligned_allocator<Eigen::Matrix<double, 6, 6>>> P_delta_vec_;
+  mutable std::vector<Eigen::Matrix<double, 6, 6>, Eigen::aligned_allocator<Eigen::Matrix<double, 6, 6>>>
+      square_root_information_vec_;
 
   /// \brief Reference biases that are updated when called redoPreintegration.
   mutable SpeedAndBias speed_and_biases_ref_ = SpeedAndBias::Zero();

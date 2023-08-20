@@ -23,8 +23,9 @@ add_library(${PROJECT_NAME}
   src/HomogeneousPointError.cpp
   src/Estimator.cpp
   src/LocalParamizationAdditionalInterfaces.cpp
-  src/MagneticError.cpp
-  src/MagneticPreintegrationError.cpp
+  # src/MagneticError.cpp
+  # src/MagneticPreintegrationError.cpp
+  src/MagneticPoseError.cpp
   include/okvis/Estimator.hpp
   include/okvis/ceres/CeresIterationCallback.hpp
 )
@@ -59,7 +60,8 @@ if(BUILD_TESTS)
     test/TestMap.cpp
     test/TestMarginalization.cpp
     # test/TestMagneticError.cpp
-    test/TestMagneticPreintegrationError.cpp
+    # test/TestMagneticPreintegrationError.cpp
+    test/TestMagneticPoseError.cpp
   )
   target_link_libraries(${PROJECT_TEST_NAME} 
     ${PROJECT_NAME}

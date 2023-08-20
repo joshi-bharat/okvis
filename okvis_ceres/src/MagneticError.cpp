@@ -1,4 +1,5 @@
-#include <okvis/ceres/MagneticError.hpp>
+#include "okvis/ceres/MagneticError.hpp"
+
 #include <okvis/ceres/PoseLocalParameterization.hpp>
 
 /// \brief okvis Main namespace of this package.

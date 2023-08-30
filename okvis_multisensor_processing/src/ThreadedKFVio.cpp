@@ -51,8 +51,8 @@ namespace okvis {
 static const int max_camera_input_queue_size = 10;
 static const okvis::Duration temporal_imu_data_overlap(
     0.02);  // overlap of imu data before and after two consecutive frames [seconds]
-static const okvis::Duration temporal_mag_data_overlap(0.1);  // overlap of mag data before and after two consecutive
-                                                              // frames [seconds] Assuming 20Hz
+static const okvis::Duration temporal_mag_data_overlap(0.02);  // overlap of mag data before and after two consecutive
+                                                               // frames [seconds] Assuming 20Hz
 
 #ifdef USE_MOCK
 // Constructor for gmock.
@@ -84,7 +84,9 @@ ThreadedKFVio::ThreadedKFVio(okvis::VioParameters& parameters)
       frontend_(parameters.nCameraSystem.numCameras()),
       parameters_(parameters),
       maxImuInputQueueSize_(2 * max_camera_input_queue_size * parameters.imu.rate /
-                            parameters.sensors_information.cameraRate) {
+                            parameters.sensors_information.cameraRate),
+      maxMagnetometerInputQueueSize_(2 * max_camera_input_queue_size * parameters.imu.rate /
+                                     parameters.sensors_information.cameraRate) {
   setBlocking(false);
   init();
 }
@@ -143,10 +145,10 @@ void ThreadedKFVio::startThreads() {
     keypointConsumerThreads_.emplace_back(&ThreadedKFVio::matchingLoop, this);
   }
   imuConsumerThread_ = std::thread(&ThreadedKFVio::imuConsumerLoop, this);
-  positionConsumerThread_ = std::thread(&ThreadedKFVio::positionConsumerLoop, this);
-  gpsConsumerThread_ = std::thread(&ThreadedKFVio::gpsConsumerLoop, this);
+  // positionConsumerThread_ = std::thread(&ThreadedKFVio::positionConsumerLoop, this);
+  // gpsConsumerThread_ = std::thread(&ThreadedKFVio::gpsConsumerLoop, this);
   magnetometerConsumerThread_ = std::thread(&ThreadedKFVio::magnetometerConsumerLoop, this);
-  differentialConsumerThread_ = std::thread(&ThreadedKFVio::differentialConsumerLoop, this);
+  // differentialConsumerThread_ = std::thread(&ThreadedKFVio::differentialConsumerLoop, this);
 
   // algorithm threads
   visualizationThread_ = std::thread(&ThreadedKFVio::visualizationLoop, this);
@@ -175,10 +177,10 @@ ThreadedKFVio::~ThreadedKFVio() {
     keypointConsumerThreads_.at(i).join();
   }
   imuConsumerThread_.join();
-  positionConsumerThread_.join();
-  gpsConsumerThread_.join();
+  // positionConsumerThread_.join();
+  // gpsConsumerThread_.join();
   magnetometerConsumerThread_.join();
-  differentialConsumerThread_.join();
+  // differentialConsumerThread_.join();
   visualizationThread_.join();
   optimizationThread_.join();
   publisherThread_.join();
@@ -291,16 +293,16 @@ void ThreadedKFVio::addGpsMeasurement(const okvis::Time&,
 }
 
 // Add a magnetometer measurement.
-void ThreadedKFVio::addMagnetometerMeasurement(const okvis::Time& stamp, const Eigen::Vector3d& magnetic_field) {
+bool ThreadedKFVio::addMagnetometerMeasurement(const okvis::Time& stamp, const Eigen::Vector3d& magnetic_field) {
   okvis::MagnetometerMeasurement magnetometer_measurement(stamp, magnetic_field);
 
   if (blocking_) {
     magnetometerMeasurementsReceived_.PushBlockingIfFull(magnetometer_measurement, 1);
-    return;
+    return true;
   } else {
     magnetometerMeasurementsReceived_.PushNonBlockingDroppingIfFull(magnetometer_measurement,
                                                                     maxMagnetometerInputQueueSize_);
-    return;
+    return imuMeasurementsReceived_.Size() == 1;
   }
 }
 
@@ -498,6 +500,11 @@ void ThreadedKFVio::matchingLoop() {
 
     // wait until all relevant imu messages have arrived and check for termination request
     if (imuFrameSynchronizer_.waitForUpToDateImuData(okvis::Time(imuDataEndTime)) == false) return;
+
+    if (parameters_.sensors_information.useMagnetometer) {
+      if (magnetometerFrameSynchronizer_.waitForUpToDateMagnetometerData(okvis::Time(imuDataEndTime)) == false) return;
+    }
+
     OKVIS_ASSERT_TRUE_DBG(Exception,
                           imuDataEndTime < imuMeasurements_.back().timeStamp,
                           "Waiting for up to date imu data seems to have failed!");
@@ -643,12 +650,18 @@ void ThreadedKFVio::magnetometerConsumerLoop() {
   okvis::MagnetometerMeasurement data;
   for (;;) {
     // get data and check for termination request
+    // auto start = std::chrono::high_resolution_clock::now();
+
     if (magnetometerMeasurementsReceived_.PopBlocking(&data) == false) return;
     // collect
-    {
-      std::unique_lock magnetometerLock(magnetometerMeasurements_mutex_);
-      magnetometerMeasurements_.push_back(data);
-    }
+
+    magnetometerMeasurements_mutex_.lock();
+    magnetometerMeasurements_.push_back(data);
+    magnetometerMeasurements_mutex_.unlock();
+    magnetometerFrameSynchronizer_.gotMagnetometerData(data.timeStamp);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    // std::cout << "The function call took " << duration.count() << " milliseconds." << std::endl;
   }
 }
 
@@ -731,7 +744,7 @@ okvis::MagnetometerMeasurementDeque ThreadedKFVio::getMagnetometerMeasurements(o
     return okvis::MagnetometerMeasurementDeque();
 
   // Read only lock
-  std::shared_lock lock(magnetometerMeasurements_mutex_);
+  magnetometerMeasurements_mutex_.lock_shared();
 
   // get iterator to imu data before previous frame
   okvis::MagnetometerMeasurementDeque::iterator first_magnetometer_data = magnetometerMeasurements_.begin();
@@ -752,6 +765,7 @@ okvis::MagnetometerMeasurementDeque ThreadedKFVio::getMagnetometerMeasurements(o
     }
   }
 
+  magnetometerMeasurements_mutex_.unlock_shared();
   // create copy of imu buffer
   return okvis::MagnetometerMeasurementDeque(first_magnetometer_data, last_magnetometer_data);
 }
@@ -771,6 +785,27 @@ int ThreadedKFVio::deleteImuMeasurements(const okvis::Time& eraseUntil) {
 
   imuMeasurements_.erase(imuMeasurements_.begin(), eraseEnd);
 
+  return removed;
+}
+
+// Remove IMU measurements from the internal buffer.
+int ThreadedKFVio::deleteMagnetometerMeasurements(const okvis::Time& eraseUntil) {
+  magnetometerMeasurements_mutex_.lock();
+  if (magnetometerMeasurements_.front().timeStamp > eraseUntil) {
+    magnetometerMeasurements_mutex_.unlock();
+    return 0;
+  }
+
+  okvis::MagnetometerMeasurementDeque::iterator eraseEnd;
+  int removed = 0;
+  for (auto it = magnetometerMeasurements_.begin(); it != magnetometerMeasurements_.end(); ++it) {
+    eraseEnd = it;
+    if (it->timeStamp >= eraseUntil) break;
+    ++removed;
+  }
+
+  magnetometerMeasurements_.erase(magnetometerMeasurements_.begin(), eraseEnd);
+  magnetometerMeasurements_mutex_.unlock();
   return removed;
 }
 
@@ -826,6 +861,9 @@ void ThreadedKFVio::optimizationLoop() {
 
       // now actually remove measurements
       deleteImuMeasurements(deleteImuMeasurementsUntil);
+      if (parameters_.sensors_information.useMagnetometer) {
+        deleteMagnetometerMeasurements(deleteImuMeasurementsUntil);
+      }
 
       // saving optimized state and saving it in OptimizationResults struct
       {

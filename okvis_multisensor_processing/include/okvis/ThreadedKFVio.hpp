@@ -47,6 +47,7 @@
 #include <okvis/FrameSynchronizer.hpp>
 #include <okvis/Frontend.hpp>
 #include <okvis/ImuFrameSynchronizer.hpp>
+#include <okvis/MagnetometerFrameSynchronizer.hpp>
 #include <okvis/Measurements.hpp>
 #include <okvis/MultiFrame.hpp>
 #include <okvis/Parameters.hpp>
@@ -57,7 +58,6 @@
 #include <okvis/timing/Timer.hpp>
 #include <shared_mutex>
 #include <thread>
-
 #ifdef USE_MOCK
 #include <../test/MockVioBackendInterface.hpp>
 #include <../test/MockVioFrontendInterface.hpp>
@@ -196,7 +196,7 @@ class ThreadedKFVio : public VioInterface {
    * \param fluxDensityMeas      Measured magnetic flux density (sensor frame) [uT].
    * \param stdev                Measurement std deviation [uT].
    */
-  virtual void addMagnetometerMeasurement(const okvis::Time& stamp, const Eigen::Vector3d& fluxDensityMeas);
+  virtual bool addMagnetometerMeasurement(const okvis::Time& stamp, const Eigen::Vector3d& fluxDensityMeas);
 
   /**
    * \brief                      Add a static pressure measurement.
@@ -288,6 +288,13 @@ class ThreadedKFVio : public VioInterface {
    */
   int deleteImuMeasurements(const okvis::Time& eraseUntil);
 
+  /**
+   * @brief Remove IMU measurements from the internal buffer.
+   * @param eraseUntil Remove all measurements that are strictly older than this time.
+   * @return The number of IMU measurements that have been removed
+   */
+  int deleteMagnetometerMeasurements(const okvis::Time& eraseUntil);
+
  private:
   /// @brief This struct contains the results of the optimization for ease of publication.
   ///        It is also used for publishing poses that have been propagated with the IMU
@@ -336,6 +343,9 @@ class ThreadedKFVio : public VioInterface {
   ImuFrameSynchronizer imuFrameSynchronizer_;  ///< The IMU frame synchronizer.
   /// \brief The frame synchronizer responsible for merging frames into multiframes
   /// \warning Lock with frameSynchronizer_mutex_
+
+  MagnetometerFrameSynchronizer magnetometerFrameSynchronizer_;  ///< The magnetometer frame synchronizer.
+
   okvis::FrameSynchronizer frameSynchronizer_;
 
   okvis::Time lastAddedStateTimestamp_;  ///< Timestamp of the newest state in the Estimator.
@@ -405,10 +415,10 @@ class ThreadedKFVio : public VioInterface {
   std::vector<std::thread> keypointConsumerThreads_;  ///< Threads running matchingLoop().
   std::vector<std::thread> matchesConsumerThreads_;   ///< Unused.
   std::thread imuConsumerThread_;                     ///< Thread running imuConsumerLoop().
-  std::thread positionConsumerThread_;                ///< Thread running positionConsumerLoop().
-  std::thread gpsConsumerThread_;                     ///< Thread running gpsConsumerLoop().
-  std::thread magnetometerConsumerThread_;            ///< Thread running magnetometerConsumerLoop().
-  std::thread differentialConsumerThread_;            ///< Thread running differentialConsumerLoop().
+  // std::thread positionConsumerThread_;                ///< Thread running positionConsumerLoop().
+  // std::thread gpsConsumerThread_;                     ///< Thread running gpsConsumerLoop().
+  std::thread magnetometerConsumerThread_;  ///< Thread running magnetometerConsumerLoop().
+  // std::thread differentialConsumerThread_;            ///< Thread running differentialConsumerLoop().
 
   /// @}
   /// @name Algorithm threads
@@ -432,8 +442,8 @@ class ThreadedKFVio : public VioInterface {
 
   /// @}
 
-  size_t numCameras_;                ///< Number of cameras in the system.
-  size_t numCameraPairs_;            ///< Number of camera pairs in the system.
+  size_t numCameras_;      ///< Number of cameras in the system.
+  size_t numCameraPairs_;  ///< Number of camera pairs in the system.
 
   okvis::VioParameters parameters_;  ///< The parameters and settings.
 

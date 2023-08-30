@@ -1,6 +1,7 @@
 #include "okvis/ceres/MagneticPoseError.hpp"
 
 #include "okvis/ceres/PoseLocalParameterization.hpp"
+
 /// \brief okvis Main namespace of this package.
 namespace okvis {
 /// \brief ceres Namespace for ceres-related functionality implemented in okvis.
@@ -47,6 +48,13 @@ bool MagneticPoseError::EvaluateWithMinimalJacobians(double const* const* parame
   Eigen::Vector3d w_mag1_estimated = dq * measurement0_;
   // get the error
   Eigen::Matrix<double, 3, 1> error = w_mag1_estimated - measurement1_;
+
+  // if (error.norm() > 1.0) {
+  //   LOG(WARNING) << "Magnetic Error: " << error.transpose() << "\n";
+  //   LOG(WARNING) << "Magnetic Measurement 0: " << measurement0_.transpose() << "\n";
+  //   LOG(WARNING) << "Magnetic Measurement 1: " << measurement1_.transpose() << "\n";
+  //   LOG(WARNING) << "Magnetic Estimated 1: " << w_mag1_estimated.transpose() << "\n";
+  // }
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 3, 1>> weighted_error(residuals);

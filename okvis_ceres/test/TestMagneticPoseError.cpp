@@ -24,7 +24,7 @@ const double jacobianTolerance = 1.0e-3;
 
 TEST(okvisTestSuite, MagneticPoseError) {
   // initialize random number generator
-  srand((unsigned int)time(0));  // disabled: make unit tests deterministic...
+  // srand((unsigned int)time(0));  // disabled: make unit tests deterministic...
 
   // Build the problem.
   ::ceres::Problem problem;
@@ -98,7 +98,7 @@ TEST(okvisTestSuite, MagneticPoseError) {
 
   okvis::MagnetometerParameters magnetometer_parameters;
   magnetometer_parameters.rate = 20;
-  magnetometer_parameters.stdev = 1.0;
+  magnetometer_parameters.sigma_m_c = 1.0;
 
   okvis::MagnetometerMeasurementDeque magnetic_measurements;
   okvis::MagnetometerMeasurement start_magnetic_field, end_magnetic_field;
@@ -115,7 +115,7 @@ TEST(okvisTestSuite, MagneticPoseError) {
       T_WS_1 = T_WS;
       speedAndBias_1 = speedAndBias;
       t_1 = okvis::Time(time);
-      end_magnetic_field.measurement.flux_density_ += magnetometer_parameters.stdev * Eigen::Vector3d::Random();
+      end_magnetic_field.measurement.flux_density_ += magnetometer_parameters.sigma_m_c * Eigen::Vector3d::Random();
       end_magnetic_field = okvis::MagnetometerMeasurement(t_0, okvis::MagnetometerReading(mag));
     }
 
@@ -166,7 +166,7 @@ TEST(okvisTestSuite, MagneticPoseError) {
 
   ::ceres::CostFunction* cost_func_mag = new okvis::ceres::MagneticPoseError(
       {start_magnetic_field.measurement.flux_density_, end_magnetic_field.measurement.flux_density_},
-      magnetometer_parameters.stdev * magnetometer_parameters.stdev);
+      magnetometer_parameters.sigma_m_c * magnetometer_parameters.sigma_m_c);
 
   // create the pose parameter blocks
   okvis::kinematics::Transformation T_disturb;
@@ -231,6 +231,7 @@ TEST(okvisTestSuite, MagneticPoseError) {
   static_cast<okvis::ceres::MagneticPoseError*>(cost_func_mag)
       ->EvaluateWithMinimalJacobians(parameters, residuals.data(), jacobains, jacobianMinimals);
 
+  std::cout << "JO: " << J0 << std::endl;
   //   and now num - diff :
   double dx = 1e-6;
 

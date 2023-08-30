@@ -38,6 +38,7 @@
  * @author Andreas Forster
  */
 
+#include <ceres/loss_function.h>
 #include <glog/logging.h>
 
 #include <okvis/Estimator.hpp>
@@ -45,11 +46,11 @@
 #include <okvis/MultiFrame.hpp>
 #include <okvis/assert_macros.hpp>
 #include <okvis/ceres/ImuError.hpp>
+#include <okvis/ceres/MagneticPoseError.hpp>
 #include <okvis/ceres/PoseError.hpp>
 #include <okvis/ceres/PoseParameterBlock.hpp>
 #include <okvis/ceres/RelativePoseError.hpp>
 #include <okvis/ceres/SpeedAndBiasError.hpp>
-
 /// \brief okvis Main namespace of this package.
 namespace okvis {
 
@@ -318,9 +319,122 @@ bool Estimator::addStates(okvis::MultiFramePtr multiFrame,
         // mapPtr_->isJacobianCorrect(id,1.0e-6);
       }
     }
-    // only camera. this is slightly inconsistent, since the IMU error term contains both
-    // a term for global states as well as for the sensor-internal ones (i.e. biases).
-    // TODO: magnetometer, pressure, ...
+
+    // Magnetometer
+    // LOG(INFO) << "Got " << mag_measurements.size() << " magnetometer measurements";
+
+    if (!mag_measurements.empty()) {
+      // okvis::MagnetometerMeasurement mag0, mag1;
+      // Eigen::Vector3d previous_mag, current_mag;
+      // double dt;
+      // auto it = mag_measurements.begin();
+      // while (it->timeStamp <= lastElementIterator->second.timestamp) {
+      //   it++;
+      // }
+
+      // assert(it != mag_measurements.begin());
+
+      // okvis::Time prev = (it - 1)->timeStamp;
+      // double interval = (it->timeStamp - prev).toSec();
+      // // LOG(INFO) << "Interval: " << interval;
+      // dt = (lastElementIterator->second.timestamp - prev).toSec();
+      // // LOG(INFO) << "dt: " << dt;
+      // double r = dt / interval;
+      // // LOG(INFO) << "r: " << r;
+      // mag0 = *(it - 1);
+      // mag1 = *it;
+      // previous_mag =
+      //     mag0.measurement.flux_density_ + r * (mag1.measurement.flux_density_ -
+      //     mag0.measurement.flux_density_).eval();
+
+      // LOG(INFO) << "KF 0 Stamp: " << std::setprecision(18) << lastElementIterator->second.timestamp.toSec();
+      // LOG(INFO) << "Mag 0: " << std::setprecision(18) << (it - 1)->timeStamp.toSec() << "\t"
+      //           << mag0.measurement.flux_density_.transpose();
+      // LOG(INFO) << "Mag 1: " << std::setprecision(18) << (it)->timeStamp.toSec() << "\t"
+      // << mag1.measurement.flux_density_.transpose();
+      // LOG(INFO) << "KF 0 Mag: " << previous_mag.transpose();
+
+      // auto rev_it = mag_measurements.rbegin();
+      // while (rev_it->timeStamp >= states.timestamp) {
+      //   rev_it++;
+      // }
+
+      // assert((rev_it - 1) != mag_measurements.rend());
+
+      // prev = rev_it->timeStamp;
+      // interval = ((rev_it - 1)->timeStamp - prev).toSec();
+      // dt = (states.timestamp - rev_it->timeStamp).toSec();
+      // r = dt / interval;
+      // mag0 = *(rev_it);
+      // mag1 = *(rev_it - 1);
+      // current_mag =
+      //     mag0.measurement.flux_density_ + r * (mag1.measurement.flux_density_ -
+      //     mag0.measurement.flux_density_).eval();
+
+      // LOG(INFO) << "KF 1 Stamp: " << std::setprecision(18) << states.timestamp.toSec();
+      // LOG(INFO) << "Mag 0: " << std::setprecision(18) << (rev_it)->timeStamp.toSec() << "\t"
+      // << mag0.measurement.flux_density_.transpose();
+      // LOG(INFO) << "Mag 1: " << std::setprecision(18) << (rev_it - 1)->timeStamp.toSec() << "\t"
+      // << mag1.measurement.flux_density_.transpose();
+      // LOG(INFO) << "KF 1 Mag: " << current_mag.transpose();
+      // Eigen::Vector3d previous_mag, current_mag;
+      // previous_mag.setZero();
+      // current_mag.setZero();
+      // for (auto itr = mag_measurements.begin(); itr != mag_measurements.end(); itr++) {
+      //   if (itr->timeStamp == lastElementIterator->second.timestamp) {
+      //     previous_mag = itr->measurement.flux_density_;
+      //   }
+      //   if (itr->timeStamp == states.timestamp) {
+      //     current_mag = itr->measurement.flux_density_;
+      //   }
+      // }
+
+      okvis::MagnetometerMeasurement mag0, mag1;
+      Eigen::Vector3d previous_mag, current_mag;
+
+      if (mag_measurements.front().timeStamp > lastElementIterator->second.timestamp) return true;
+      if (mag_measurements.back().timeStamp < states.timestamp) return true;
+
+      bool has_started = false;
+      for (auto itr = mag_measurements.begin(); itr != mag_measurements.end() - 1; itr++) {
+        if (!has_started && (itr + 1)->timeStamp >= lastElementIterator->second.timestamp) {
+          mag0 = *itr;
+          mag1 = *(itr + 1);
+          double duration = (mag1.timeStamp - mag0.timeStamp).toSec();
+
+          double dt = (lastElementIterator->second.timestamp - mag0.timeStamp).toSec();
+          double r = dt / duration;
+          previous_mag = mag0.measurement.flux_density_ +
+                         r * (mag1.measurement.flux_density_ - mag0.measurement.flux_density_).eval();
+          has_started = true;
+        }
+        if ((itr + 1)->timeStamp >= states.timestamp) {
+          mag0 = *itr;
+          mag1 = *(itr + 1);
+          double duration = (mag1.timeStamp - mag0.timeStamp).toSec();
+          double dt = (states.timestamp - mag0.timeStamp).toSec();
+          double r = dt / duration;
+          current_mag = mag0.measurement.flux_density_ +
+                        r * (mag1.measurement.flux_density_ - mag0.measurement.flux_density_).eval();
+
+          break;
+        }
+      }
+      if (previous_mag.isZero() || current_mag.isZero()) {
+        LOG(INFO) << "No magnetometer measurement found for this frame";
+      } else {
+        std::pair<Eigen::Vector3d, Eigen::Vector3d> magnetic_input = {previous_mag, current_mag};
+        double variance = 0.1 * 0.1;
+
+        std::shared_ptr<ceres::MagneticPoseError> magnetic_error(
+            new ceres::MagneticPoseError(magnetic_input, variance));
+        // ::ceres::LossFunction* loss_function = new ::ceres::HuberLoss(5.0);
+        mapPtr_->addResidualBlock(magnetic_error,
+                                  NULL,
+                                  mapPtr_->parameterBlockPtr(lastElementIterator->second.id),
+                                  mapPtr_->parameterBlockPtr(states.id));
+      }
+    }
   }
 
   return true;

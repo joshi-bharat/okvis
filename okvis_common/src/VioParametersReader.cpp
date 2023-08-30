@@ -401,15 +401,14 @@ void VioParametersReader::readConfigFile(const std::string& filename) {
     OKVIS_ASSERT_TRUE(Exception,
                       mag_params["sigma_mw_c"].isReal(),
                       "'mag_params: sigma_mw_c' parameter missing in configuration file.");
-    OKVIS_ASSERT_TRUE(Exception,
-                      mag_params["sigma_bm"].isReal(),
-                      "'mag_params: sigma_mw_c' parameter missing in configuration file.");
+    // OKVIS_ASSERT_TRUE(Exception,
+    //                   mag_params["sigma_bm"].isReal(),
+    //                   "'mag_params: sigma_mw_c' parameter missing in configuration file.");
     OKVIS_ASSERT_TRUE(
         Exception, mag_params["rate"].isInt(), "'mag_params: rate' parameter missing in configuration file.")
 
-    mag_params["sigma_m_c"] >> vioParameters_.magnetometer.stdev;
-    mag_params["sigma_mw_c"] >> vioParameters_.magnetometer.sigma_c;
-    mag_params["sigma_bm"] >> vioParameters_.magnetometer.priorStdev;
+    mag_params["sigma_m_c"] >> vioParameters_.magnetometer.sigma_m_c;
+    mag_params["sigma_mw_c"] >> vioParameters_.magnetometer.sigma_mw_c;
     mag_params["rate"] >> vioParameters_.magnetometer.rate;
 
     OKVIS_ASSERT_TRUE(Exception, mag_params["b0"].isSeq(), "'ma_params: m0' parameter missing in configuration file.");
@@ -429,8 +428,8 @@ void VioParametersReader::readConfigFile(const std::string& filename) {
 
     LOG(INFO) << "Magnetometer with transformation T_SM: \n"
               << vioParameters_.magnetometer.T_SM.T() << "\n"
-              << "Measurement standard deviation: " << vioParameters_.magnetometer.stdev << "\n"
-              << "Magnetometer bias noise density: " << vioParameters_.magnetometer.sigma_c << "\n"
+              << "Measurement standard deviation: " << vioParameters_.magnetometer.sigma_m_c << "\n"
+              << "Magnetometer bias noise density: " << vioParameters_.magnetometer.sigma_mw_c << "\n"
               << "Initial Bias: " << vioParameters_.magnetometer.b0.transpose() << "\n"
               << "Initial Soft Iron/Axis Misalignment: \n"
               << vioParameters_.magnetometer.A0;

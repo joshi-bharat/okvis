@@ -123,10 +123,9 @@ struct ImuParameters {
 struct MagnetometerParameters {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   okvis::kinematics::Transformation T_SM;  ///< Transformation from Magnetometer to IMU.
-  double stdev;                            ///< Measurement (white noise part) standard deviation. [uT]
-  double priorStdev;                       ///< Prior. [uT]
+  double sigma_m_c;                        ///< Measurement (white noise part) standard deviation. [uT]
   double tau;                              ///< Reversion time constant of bias [s]
-  double sigma_c;                          ///< Bias noise density [uT/sqrt(Hz)]
+  double sigma_mw_c;                       ///< Bias noise density [uT/sqrt(Hz)]
   double updateFrequency;                  ///< Related state estimates are inserted at this frequency. [Hz]
   Eigen::Vector3d b0;                      ///< Mean of the prior bias. [uT]
   Eigen::Matrix3d A0;                      ///< Initial soft iron bias and axis misalignment [uT]
@@ -269,7 +268,7 @@ struct PublishingParameters {
   int publishRate = 200;         ///< Maximum publishing rate. [Hz]
   bool publishLandmarks = true;  ///< Select, if you want to publish landmarks at all.
   float landmarkQualityThreshold =
-      1.0e-5;                    ///< Quality threshold under which landmarks are not published. Between 0 and 1.
+      1.0e-5;  ///< Quality threshold under which landmarks are not published. Between 0 and 1.
   float maxLandmarkQuality =
       0.05;  ///< Quality above which landmarks are assumed to be of the best quality. Between 0 and 1.
   size_t maxPathLength = 100;  ///< Maximum length of ros::nav_mgsgs::Path to be published.

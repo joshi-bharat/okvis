@@ -200,6 +200,7 @@ typedef Eigen::Matrix<double, 9, 1> SpeedAndBias;
 
 typedef std::deque<okvis::kinematics::Transformation, Eigen::aligned_allocator<okvis::kinematics::Transformation>>
     Transformations;
+typedef std::deque<Eigen::Quaterniond, Eigen::aligned_allocator<Eigen::Quaterniond>> Quaternions;
 typedef std::deque<SpeedAndBias, Eigen::aligned_allocator<SpeedAndBias>> SpeedAndBiases;
 
 }  // namespace okvis

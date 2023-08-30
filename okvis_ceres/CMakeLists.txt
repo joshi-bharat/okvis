@@ -26,6 +26,7 @@ add_library(${PROJECT_NAME}
   # src/MagneticError.cpp
   # src/MagneticPreintegrationError.cpp
   src/MagneticPoseError.cpp
+  src/MagneticSyncPreintegrationError.cpp
   include/okvis/Estimator.hpp
   include/okvis/ceres/CeresIterationCallback.hpp
 )
@@ -62,6 +63,7 @@ if(BUILD_TESTS)
     # test/TestMagneticError.cpp
     # test/TestMagneticPreintegrationError.cpp
     test/TestMagneticPoseError.cpp
+    test/TestMagneticSyncPreintegrationError.cpp
   )
   target_link_libraries(${PROJECT_TEST_NAME} 
     ${PROJECT_NAME}

@@ -21,10 +21,12 @@ include_directories(BEFORE ${OpenCV_INCLUDE_DIRS})
 add_library(${PROJECT_NAME}
   src/ThreadedKFVio.cpp
   src/ImuFrameSynchronizer.cpp
+  src/MagnetometerFrameSynchronizer.cpp
   src/FrameSynchronizer.cpp
   src/VioVisualizer.cpp
   include/okvis/ThreadedKFVio.hpp
   include/okvis/ImuFrameSynchronizer.hpp
+  include/okvis/MagnetometerFrameSynchronizer.hpp
   include/okvis/FrameSynchronizer.hpp
   include/okvis/VioVisualizer.hpp
   include/okvis/threadsafe/ThreadsafeQueue.hpp

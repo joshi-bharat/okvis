@@ -100,7 +100,7 @@ TEST(okvisTestSuite, MagneticPreintegrationError) {
 
   okvis::MagnetometerParameters magnetometer_parameters;
   magnetometer_parameters.rate = 20;
-  magnetometer_parameters.stdev = 3.0;
+  magnetometer_parameters.sigma_m_c = 3.0;
 
   okvis::MagnetometerMeasurementDeque magnetic_measurements;
   okvis::MagnetometerMeasurement start_magnetic_field, end_magnetic_field;

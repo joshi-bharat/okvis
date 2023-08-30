@@ -51,14 +51,29 @@ imu_params:
          0.0000, 0.0000, 1.0000, 0.0000,
          0.0000, 0.0000, 0.0000, 1.0000]
 
+
+mag_params:
+    sigma_m_c: 0.13637
+    sigma_mw_c: 5.0142e-03
+    T_SM:
+        [1.0000, 0.0000, 0.0000, 0.0000,
+         0.0000, 1.0000, 0.0000, 0.0000,
+         0.0000, 0.0000, 1.0000, 0.0000,
+         0.0000, 0.0000, 0.0000, 1.0000]
+    b0: [0.0, 0.0, 0.0] #Initial magnetometer bias
+    A0: [1.0, 0.0, 0.0,
+         0.0, 1.0, 0.0,
+         0.0, 0.0, 1.0]
+    rate: 100
+
 # Estimator parameters
 numKeyframes: 5 # number of keyframes in optimisation window
 numImuFrames: 3 # number of frames linked by most recent nonlinear IMU error terms
 
 # ceres optimization options
 ceres_options:
-    minIterations: 3   # minimum number of iterations always performed
-    maxIterations: 10  # never do more than these, even if not converged
+    minIterations: 5   # minimum number of iterations always performed
+    maxIterations: 20  # never do more than these, even if not converged
     timeLimit: 0.035   # [s] negative values will set the an unlimited time limit
 
 # detection
@@ -74,7 +89,7 @@ imageDelay: 0.0  # in case you are using a custom setup, you will have to calibr
 displayImages: true  # displays debug video and keyframe matches. May be slow.
 
 # use direct driver
-useDriver: true 
+useDriver: false 
 
 # some options for how and what to publish -- optional in ROS-free version
 publishing_options:

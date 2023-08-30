@@ -206,7 +206,7 @@ class VioInterface {
   /// \param stdev                Measurement std deviation [uT]
   */
   /// \return                     Returns true normally. False, if the previous one has not been processed yet.
-  virtual void addMagnetometerMeasurement(const okvis::Time& /*stamp*/, const Eigen::Vector3d& /*fluxDensityMeas*/) = 0;
+  virtual bool addMagnetometerMeasurement(const okvis::Time& /*stamp*/, const Eigen::Vector3d& /*fluxDensityMeas*/) = 0;
 
   /// \brief                      Add a static pressure measurement.
   /// \warning Not Implemented.
@@ -307,7 +307,7 @@ class VioInterface {
   std::shared_ptr<std::fstream> csvPosFile_;                         ///< Position CSV File.
   std::shared_ptr<std::fstream> csvMagFile_;                         ///< Magnetometer CSV File
   typedef std::map<size_t, std::shared_ptr<std::fstream>> FilePtrMap;
-  FilePtrMap csvTracksFiles_;                                        ///< Tracks CSV Files.
+  FilePtrMap csvTracksFiles_;  ///< Tracks CSV Files.
   bool blocking_;  ///< Blocking option. Whether the addMeasurement() functions should wait until proccessing is
                    ///< complete.
 };

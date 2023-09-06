@@ -48,6 +48,14 @@ MagneticSyncPreintegrationError::MagneticSyncPreintegrationError(
 
   setEndTime(magnetometer_measurements.back().timeStamp);
 
+  double variance =
+      magnetometer_parameters_.sigma_m_c * magnetometer_parameters_.sigma_m_c * magnetometer_parameters_.rate;
+  magnetic_covariance_ = Eigen::Matrix3d::Identity() * variance;
+  Eigen::Matrix3d information = magnetic_covariance_.inverse();
+  information = 0.5 * information + 0.5 * information.transpose().eval();
+  Eigen::LLT<Eigen::Matrix3d> lltOfInformation(information);
+  sqrt_information_ = lltOfInformation.matrixL().transpose();
+
   OKVIS_ASSERT_TRUE_DBG(Exception,
                         imu_measurements.back().timeStamp < magnetometer_measurements.back().timeStamp,
                         "Oldest IMU measurement is newer than oldest magnetometer measurement!");
@@ -56,7 +64,7 @@ MagneticSyncPreintegrationError::MagneticSyncPreintegrationError(
                         "Newest IMU measurement is older than newest magnetometer measurement!");
 }
 
-int MagneticSyncPreintegrationError::redoPreintegration(const okvis::kinematics::Transformation& /*T_WS*/,
+int MagneticSyncPreintegrationError::redoPreintegration(const Eigen::Quaterniond& /*T_WS*/,
                                                         const SpeedAndBias& speed_and_biases) const {
   std::unique_lock l(preintegration_mutex_);
 
@@ -382,9 +390,7 @@ bool MagneticSyncPreintegrationError::EvaluateWithMinimalJacobians(double const*
                                                                    double** jacobians,
                                                                    double** jacobians_minimal) const {
   // get poses
-  const okvis::kinematics::Transformation T_WS_0(
-      Eigen::Vector3d(parameters[0][0], parameters[0][1], parameters[0][2]),
-      Eigen::Quaterniond(parameters[0][6], parameters[0][3], parameters[0][4], parameters[0][5]));
+  const Eigen::Quaterniond q_WS_0(parameters[0][6], parameters[0][3], parameters[0][4], parameters[0][5]);
 
   // get speed and bias
   SpeedAndBias speed_and_biases_0;
@@ -392,9 +398,7 @@ bool MagneticSyncPreintegrationError::EvaluateWithMinimalJacobians(double const*
     speed_and_biases_0[i] = parameters[1][i];
   }
 
-  const okvis::kinematics::Transformation T_WS_1(
-      Eigen::Vector3d(parameters[2][0], parameters[2][1], parameters[2][2]),
-      Eigen::Quaterniond(parameters[2][6], parameters[2][3], parameters[2][4], parameters[2][5]));
+  const Eigen::Quaterniond q_WS_1(parameters[2][6], parameters[2][3], parameters[2][4], parameters[2][5]);
 
   // call propagation
   const double dt = (t_end_ - t_start_).toSec();
@@ -407,7 +411,7 @@ bool MagneticSyncPreintegrationError::EvaluateWithMinimalJacobians(double const*
 
   redo_ = redo_ || (delta_b.norm() * dt > 0.0001);
   if (redo_) {
-    redoPreintegration(T_WS_0, speed_and_biases_0);
+    redoPreintegration(q_WS_0, speed_and_biases_0);
     redoCounter_++;
     delta_b.setZero();
     redo_ = false;
@@ -424,13 +428,12 @@ bool MagneticSyncPreintegrationError::EvaluateWithMinimalJacobians(double const*
   std::vector<Eigen::Matrix<double, 3, 9>> J1_vec;
   std::vector<Eigen::Matrix<double, 3, 6>> J2_minimal_vec;
 
-  double variance = magnetometer_parameters_.sigma_m_c * magnetometer_parameters_.sigma_m_c *
-                    static_cast<double>(magnetometer_parameters_.rate);
-  Eigen::Matrix3d information = Eigen::Matrix3d::Identity() / variance;
-  Eigen::LLT<Eigen::Matrix3d> lltOfInformation(information);
-  Eigen::Matrix3d sqrt_information = lltOfInformation.matrixL().transpose();
-
   // read only lock
+  const Eigen::Matrix3d C_WS_0 = q_WS_0.toRotationMatrix();
+  const Eigen::Matrix3d C_SW_0 = C_WS_0.transpose();
+  const Eigen::Matrix3d C_WS_1 = q_WS_1.toRotationMatrix();
+  const Eigen::Matrix3d C_SW_1 = C_WS_1.transpose();
+
   preintegration_mutex_.lock_shared();
 
   assert(delta_qs_vec_.size() == n_residuals);
@@ -440,24 +443,33 @@ bool MagneticSyncPreintegrationError::EvaluateWithMinimalJacobians(double const*
 
     const Eigen::Quaterniond dq = okvis::kinematics::deltaQ(-dalpha_db_g_vec_[i] * delta_b) * delta_qs_vec_[i];
     const Eigen::Vector3d mag_measurement_0 = dq * magnetic_measurement;
+    const Eigen::Vector3d mag_measurement_1 = magnetometer_measurement_1_.measurement.flux_density_;
+    Eigen::Vector3d error = C_SW_0 * C_WS_1 * mag_measurement_1 - mag_measurement_0;
 
-    const Eigen::Vector3d magnetic_measurement_estimated = T_WS_1.q().inverse() * T_WS_0.q() * mag_measurement_0;
-    Eigen::Vector3d error = magnetic_measurement_estimated - magnetometer_measurement_1_.measurement.flux_density_;
+    // Eigen::Matrix3d rot_variance = P_delta_vec_[i].topLeftCorner<3, 3>();
+    // Eigen::Matrix3d R = dq.toRotationMatrix();
+    // Eigen::Matrix3d cross_m_x = R * okvis::kinematics::crossMx(magnetic_measurement);
+    // Eigen::Matrix3d total_covariance = cross_m_x * rot_variance * cross_m_x.transpose() + magnetic_covariance_;
+    // // std::cout << "Error:  " << error.transpose() << std::endl;
+    // total_covariance = 0.5 * total_covariance + 0.5 * total_covariance.transpose().eval();
 
-    // std::cout << "Error:  " << error.transpose() << std::endl;
-    weighted_error.segment<3>(3 * i) = sqrt_information * error;
+    // double delta_t = (magnetometer_measurements_[i].timeStamp - t_start_).toSec();
+    // Eigen::Matrix3d propagated_covariance = magnetic_covariance_ * delta_t;
+    // Eigen::Matrix3d information = total_covariance.inverse();
+    // information = 0.5 * information + 0.5 * information.transpose().eval();
+    // Eigen::LLT<Eigen::Matrix3d> lltOfInformation(information);
+    // Eigen::Matrix3d sqrt_information = lltOfInformation.matrixL().transpose();
+
+    weighted_error.segment<3>(3 * i) = sqrt_information_ * error;
 
     Eigen::Matrix<double, 3, 6> J0_minimal = Eigen::Matrix<double, 3, 6>::Zero();
-    J0_minimal.block<3, 3>(0, 3) =
-        sqrt_information * T_WS_1.q().inverse() * -okvis::kinematics::crossMx(T_WS_0.q() * mag_measurement_0);
+    J0_minimal.block<3, 3>(0, 3) = sqrt_information_ * C_SW_0 * okvis::kinematics::crossMx(C_WS_1 * mag_measurement_1);
 
     Eigen::Matrix<double, 3, 9> J1;
     J1.setZero();
-    J1.block<3, 3>(0, 3) = sqrt_information * T_WS_1.q().inverse() * T_WS_0.q() *
-                           okvis::kinematics::crossMx(mag_measurement_0) * dalpha_db_g_vec_[i];
+    // J1.block<3, 3>(0, 3) = sqrt_information_ * -okvis::kinematics::crossMx(mag_measurement_0) * dalpha_db_g_vec_[i];
     Eigen::Matrix<double, 3, 6> J2_minimal = Eigen::Matrix<double, 3, 6>::Zero();
-    J2_minimal.block<3, 3>(0, 3) =
-        sqrt_information * T_WS_1.q().inverse() * okvis::kinematics::crossMx(T_WS_0.q() * mag_measurement_0);
+    J2_minimal.block<3, 3>(0, 3) = sqrt_information_ * C_SW_0 * -okvis::kinematics::crossMx(C_WS_1 * mag_measurement_1);
 
     J0_minimal_vec.push_back(J0_minimal);
     J1_vec.push_back(J1);

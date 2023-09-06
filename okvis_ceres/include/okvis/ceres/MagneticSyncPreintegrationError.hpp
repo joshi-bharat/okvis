@@ -45,7 +45,7 @@ class MagneticSyncPreintegrationError : public ::ceres::CostFunction, public Err
                          Covariances* covariances = nullptr,
                          Jacobians* jacobians = nullptr);
 
-  int redoPreintegration(const okvis::kinematics::Transformation& T_WS, const SpeedAndBias& speed_and_biases) const;
+  int redoPreintegration(const Eigen::Quaterniond& q_WS, const SpeedAndBias& speed_and_biases) const;
   inline void setRedo(const bool redo = true) const { redo_ = redo; }
 
   inline void setImuParameters(const okvis::ImuParameters& imu_params) { imu_parameters_ = imu_params; }
@@ -132,6 +132,7 @@ class MagneticSyncPreintegrationError : public ::ceres::CostFunction, public Err
 
   // Gp covariance, information matrix and its square root
   mutable Eigen::Matrix3d magnetic_covariance_;
+  Eigen::Matrix3d sqrt_information_;
 
   /// ID
   size_t id_ = 0;

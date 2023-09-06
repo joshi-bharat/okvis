@@ -27,17 +27,20 @@ class MagneticPoseError : public ::ceres::SizedCostFunction<3, 7, 7>, public Err
   /// \brief Default constructor.
   MagneticPoseError(){};
 
-  MagneticPoseError(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& measurements, const information_t& information);
+  MagneticPoseError(const Eigen::Vector3d& start_magnetic_field,
+                    const Eigen::Vector3d& end_magnetic_field,
+                    const information_t& information);
 
-  MagneticPoseError(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& measurements, double variance);
+  MagneticPoseError(const Eigen::Vector3d& start_magnetic_field,
+                    const Eigen::Vector3d& end_magnetic_field,
+                    double variance);
 
   /// \brief Trivial destructor.
   virtual ~MagneticPoseError(){};  // trivial destructor
 
-  void setMeasurement(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& measurements) {
-    measurement0_ = measurements.first;
-    measurement1_ = measurements.second;
-  }
+  void setStartMagneticField(const Eigen::Vector3d& magnetic_field) { measurement0_ = magnetic_field; }
+
+  void setEndMagneticField(const Eigen::Vector3d& magnetic_field) { measurement1_ = magnetic_field; }
 
   void setInformation(const information_t& information);
 

@@ -7,14 +7,19 @@ namespace okvis {
 /// \brief ceres Namespace for ceres-related functionality implemented in okvis.
 namespace ceres {
 
-MagneticPoseError::MagneticPoseError(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& measurements,
+MagneticPoseError::MagneticPoseError(const Eigen::Vector3d& start_magnetic_field,
+                                     const Eigen::Vector3d& end_magnetic_field,
                                      const information_t& information) {
-  setMeasurement(measurements);
+  setStartMagneticField(start_magnetic_field);
+  setEndMagneticField(end_magnetic_field);
   setInformation(information);
 }
 
-MagneticPoseError::MagneticPoseError(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& measurements, double variance) {
-  setMeasurement(measurements);
+MagneticPoseError::MagneticPoseError(const Eigen::Vector3d& start_magnetic_field,
+                                     const Eigen::Vector3d& end_magnetic_field,
+                                     double variance) {
+  setStartMagneticField(start_magnetic_field);
+  setEndMagneticField(end_magnetic_field);
   setInformation(Eigen::Matrix3d::Identity() * 1.0 / variance);
 }
 
@@ -50,7 +55,7 @@ bool MagneticPoseError::EvaluateWithMinimalJacobians(double const* const* parame
   Eigen::Matrix<double, 3, 1> error = w_mag1_estimated - measurement1_;
 
   // if (error.norm() > 1.0) {
-  //   LOG(WARNING) << "Magnetic Error: " << error.transpose() << "\n";
+  // LOG(WARNING) << "Magnetic Error: " << error.transpose() << "\n";
   //   LOG(WARNING) << "Magnetic Measurement 0: " << measurement0_.transpose() << "\n";
   //   LOG(WARNING) << "Magnetic Measurement 1: " << measurement1_.transpose() << "\n";
   //   LOG(WARNING) << "Magnetic Estimated 1: " << w_mag1_estimated.transpose() << "\n";
